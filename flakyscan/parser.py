@@ -6,6 +6,7 @@
 
 import sys
 import xml.etree.ElementTree as ET
+from datetime import date
 from pathlib import Path
 
 
@@ -13,11 +14,21 @@ class ParseError(Exception):
     """Raised when a JUnit XML file cannot be parsed."""
 
 
-def parse_file(path: Path) -> list[tuple[str, bool]]:
+def _parse_timestamp(value: str) -> date | None:
+    """Parse an ISO-8601 timestamp string to a date, or None on failure."""
+    try:
+        return date.fromisoformat(value[:10])
+    except (ValueError, IndexError):
+        return None
+
+
+def parse_file(path: Path) -> tuple[list[tuple[str, bool]], date | None]:
     """
     Parse one JUnit XML file.
 
-    Returns a list of (classname.testname, passed) tuples.
+    Returns a tuple of:
+      - list of (classname.testname, passed) tuples
+      - the date from the first <testsuite> timestamp attribute, or None
     Raises ParseError on malformed XML.
     """
     try:
@@ -37,6 +48,14 @@ def parse_file(path: Path) -> list[tuple[str, bool]]:
     else:
         raise ParseError(f"Unexpected root element <{root.tag}> in {path}")
 
+    # Read timestamp from the first suite that has one.
+    run_date: date | None = None
+    for suite in suites:
+        ts_attr = suite.get("timestamp")
+        if ts_attr is not None:
+            run_date = _parse_timestamp(ts_attr)
+            break
+
     results: list[tuple[str, bool]] = []
     for suite in suites:
         for case in suite.findall("testcase"):
@@ -52,18 +71,18 @@ def parse_file(path: Path) -> list[tuple[str, bool]]:
             failed = case.find("failure") is not None or case.find("error") is not None
             results.append((full_name, not failed))
 
-    return results
+    return results, run_date
 
 
-def parse_folder(folder: Path) -> dict[str, list[tuple[str, bool]]]:
+def parse_folder(folder: Path) -> dict[str, tuple[list[tuple[str, bool]], date | None]]:
     """
     Walk *folder* for *.xml files and parse each one.
 
-    Returns {filename: [(test_name, passed), ...]}. 
+    Returns {filename: ([(test_name, passed), ...], run_date)}.
     Files that fail to parse are skipped with a printed warning.
     """
     xml_files = sorted(folder.rglob("*.xml"))
-    runs: dict[str, list[tuple[str, bool]]] = {}
+    runs: dict[str, tuple[list[tuple[str, bool]], date | None]] = {}
     for xml_path in xml_files:
         try:
             runs[str(xml_path.relative_to(folder))] = parse_file(xml_path)

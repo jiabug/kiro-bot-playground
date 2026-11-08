@@ -2,6 +2,7 @@
 
 import argparse
 import sys
+from datetime import date
 from pathlib import Path
 
 from .aggregator import aggregate
@@ -32,6 +33,13 @@ def build_parser() -> argparse.ArgumentParser:
         default="table",
         help="Output format: table (default) or json.",
     )
+    p.add_argument(
+        "--since",
+        type=str,
+        default=None,
+        metavar="YYYY-MM-DD",
+        help="Only include reports with a testsuite timestamp >= this date.",
+    )
     return p
 
 
@@ -47,8 +55,15 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Error: not a directory: {folder}", file=sys.stderr)
         return 1
 
+    since: date | None = None
+    if args.since is not None:
+        try:
+            since = date.fromisoformat(args.since)
+        except ValueError:
+            parser.error("--since must be YYYY-MM-DD")
+
     runs = parse_folder(folder)
-    stats = aggregate(runs, min_runs=args.min_runs)
+    stats = aggregate(runs, min_runs=args.min_runs, since=since)
     print(render(stats, fmt=args.format))
     return 0
 

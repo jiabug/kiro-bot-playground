@@ -54,15 +54,6 @@ def test_cli_sorted_by_flake_rate(capsys, tmp_path):
     run1 = tmp_path / "r1.xml"
     run2 = tmp_path / "r2.xml"
     run3 = tmp_path / "r3.xml"
-    xml_template = """<?xml version="1.0"?>
-<testsuite name="s">
-  <testcase classname="m" name="test_a"{fail_a}/>
-  <testcase classname="m" name="test_b"{fail_b}/>
-</testsuite>"""
-    fail = '><failure message="x">x</failure></testcase'
-    ok = "/"
-
-    run1.write_text(xml_template.format(fail_a=ok, fail_b=ok).replace("testcase/>", "testcase/>"))
     # shortcut: manual XML is simpler
     run1.write_text(
         '<?xml version="1.0"?><testsuite name="s">'
@@ -90,3 +81,29 @@ def test_cli_sorted_by_flake_rate(capsys, tmp_path):
     names = [d["test"] for d in data]
     assert "m.test_a" in names
     assert "m.test_b" in names
+
+
+# --- --since filter CLI tests ---
+
+
+def test_cli_since_filters_old_reports(capsys, tmp_path):
+    """--since 2099-01-01 with only old-timestamped reports -> empty output, exit 0."""
+    old_xml = tmp_path / "old.xml"
+    old_xml.write_text(
+        '<?xml version="1.0"?>'
+        '<testsuite name="s" timestamp="2020-01-01T00:00:00">'
+        '<testcase classname="m" name="test_a"/>'
+        '<testcase classname="m" name="test_a"><failure>x</failure></testcase>'
+        "</testsuite>"
+    )
+    rc = main([str(tmp_path), "--since", "2099-01-01"])
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "No flaky tests" in out
+
+
+def test_cli_since_invalid_date(capsys):
+    """--since not-a-date -> exit code 2."""
+    with pytest.raises(SystemExit) as exc_info:
+        main([str(FIXTURES), "--since", "not-a-date"])
+    assert exc_info.value.code == 2
