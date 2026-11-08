@@ -1,5 +1,10 @@
 """Parse JUnit XML report files into (test_name, passed) records."""
 
+# xml.etree.ElementTree does not fetch external entities (safe by default).
+# shortcut: does not guard against internal entity expansion (billion laughs);
+# replace with defusedxml if parsing untrusted CI artifacts.
+
+import sys
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
@@ -16,6 +21,9 @@ def parse_file(path: Path) -> list[tuple[str, bool]]:
     Raises ParseError on malformed XML.
     """
     try:
+        # xml.etree.ElementTree does not fetch external entities (safe by default).
+        # shortcut: does not guard against internal entity expansion (billion laughs);
+        # replace with defusedxml if parsing untrusted CI artifacts.
         tree = ET.parse(path)
     except ET.ParseError as exc:
         raise ParseError(f"Malformed XML in {path}: {exc}") from exc
@@ -34,8 +42,13 @@ def parse_file(path: Path) -> list[tuple[str, bool]]:
         for case in suite.findall("testcase"):
             classname = case.get("classname", "")
             name = case.get("name", "")
-            full_name = f"{classname}.{name}" if classname else name
-            # A testcase is failed/errored when it contains <failure> or <error>
+            # Use (no-class) prefix when classname is absent to prevent collisions
+            # across different suites that share bare test names.
+            full_name = f"{classname}.{name}" if classname else f"(no-class).{name}"
+            # A testcase is failed/errored when it contains <failure> or <error>.
+            # A <skipped/> child means the test did not run; exclude it entirely.
+            if case.find("skipped") is not None:
+                continue
             failed = case.find("failure") is not None or case.find("error") is not None
             results.append((full_name, not failed))
 
@@ -53,9 +66,8 @@ def parse_folder(folder: Path) -> dict[str, list[tuple[str, bool]]]:
     runs: dict[str, list[tuple[str, bool]]] = {}
     for xml_path in xml_files:
         try:
-            runs[xml_path.name] = parse_file(xml_path)
+            runs[str(xml_path.relative_to(folder))] = parse_file(xml_path)
         except ParseError as exc:
             # Warn but continue; don't crash the whole run.
-            import sys
             print(f"Warning: {exc}", file=sys.stderr)
     return runs

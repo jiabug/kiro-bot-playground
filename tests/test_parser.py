@@ -45,8 +45,19 @@ def test_parse_folder_skips_broken(capsys):
 
 def test_parse_folder_returns_two_runs():
     runs = parse_folder(FIXTURES)
-    # Only run1.xml and run2.xml should parse successfully
-    assert set(runs.keys()) == {"run1.xml", "run2.xml"}
+    # run1.xml, run2.xml, and run_with_skipped.xml should parse successfully
+    assert set(runs.keys()) == {"run1.xml", "run2.xml", "run_with_skipped.xml"}
+
+
+def test_skipped_not_counted_as_pass():
+    """<skipped/> runs must be excluded, not recorded as passes."""
+    results = parse_file(FIXTURES / "run_with_skipped.xml")
+    by_name = dict(results)
+    # test_alpha and test_gamma are present and passed
+    assert by_name["tests.module_a.test_alpha"] is True
+    assert by_name["tests.module_a.test_gamma"] is True
+    # test_beta was skipped -- must not appear at all
+    assert "tests.module_a.test_beta" not in by_name
 
 
 def test_parse_empty_folder():
