@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="suite_skipped" tests="3" failures="0" errors="0" skipped="1">
+  <testcase classname="tests.module_a" name="test_alpha" time="0.1"/>
+  <testcase classname="tests.module_a" name="test_beta" time="0.2">
+    <skipped message="not supported on this platform"/>
+  </testcase>
+  <testcase classname="tests.module_a" name="test_gamma" time="0.05"/>
+</testsuite>
