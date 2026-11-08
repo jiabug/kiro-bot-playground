@@ -54,6 +54,7 @@ def test_parse_folder_returns_expected_runs():
         "run_with_skipped.xml",
         "run_since_old.xml",
         "run_since_new.xml",
+        "run_multisuite.xml",
     }
     assert set(runs.keys()) == expected
 
@@ -81,3 +82,50 @@ def test_skipped_not_counted_as_pass():
 def test_parse_empty_folder():
     runs = parse_folder(FIXTURES / "empty")
     assert runs == {}
+
+
+# --- multi-suite timestamp tests ---
+
+def test_multisuite_max_timestamp():
+    """run_multisuite.xml has s1=2020-01-01 and s2=2099-06-01; max wins."""
+    _, run_date = parse_file(FIXTURES / "run_multisuite.xml")
+    assert run_date == date(2099, 6, 1)
+
+
+def test_multisuite_included_when_max_in_window():
+    """File with max-timestamp 2099-06-01 must be included for since=2050-01-01."""
+    _, run_date = parse_file(FIXTURES / "run_multisuite.xml")
+    assert run_date is not None
+    assert run_date >= date(2050, 1, 1)
+
+
+def test_multisuite_excluded_when_max_before_since():
+    """File with max-timestamp 2099-06-01 must be excluded for since=2200-01-01."""
+    _, run_date = parse_file(FIXTURES / "run_multisuite.xml")
+    assert run_date is not None
+    assert run_date < date(2200, 1, 1)
+
+
+# --- malformed / empty timestamp tests ---
+
+from flakyscan.parser import _parse_timestamp
+
+
+def test_parse_timestamp_malformed_returns_none(capsys: pytest.CaptureFixture[str]) -> None:
+    assert _parse_timestamp("not-a-date") is None
+    assert _parse_timestamp("2024-99-01T00:00:00") is None
+
+
+def test_parse_timestamp_malformed_warns(capsys: pytest.CaptureFixture[str]) -> None:
+    _parse_timestamp("not-a-date")
+    captured = capsys.readouterr()
+    assert "Warning" in captured.err
+    assert "not-a-date" in captured.err
+
+
+def test_parse_timestamp_empty_string() -> None:
+    assert _parse_timestamp("") is None
+
+
+def test_parse_timestamp_valid() -> None:
+    assert _parse_timestamp("2024-06-01T12:00:00") == date(2024, 6, 1)

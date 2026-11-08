@@ -1,0 +1,8 @@
+<testsuites>
+  <testsuite name="s1" timestamp="2020-01-01T00:00:00">
+    <testcase classname="m" name="test_a"/>
+  </testsuite>
+  <testsuite name="s2" timestamp="2099-06-01T00:00:00">
+    <testcase classname="m" name="test_b"><failure>x</failure></testcase>
+  </testsuite>
+</testsuites>

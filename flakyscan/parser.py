@@ -14,11 +14,23 @@ class ParseError(Exception):
     """Raised when a JUnit XML file cannot be parsed."""
 
 
-def _parse_timestamp(value: str) -> date | None:
-    """Parse an ISO-8601 timestamp string to a date, or None on failure."""
+def _parse_timestamp(value: str, file_path: Path | None = None) -> date | None:
+    """Parse an ISO-8601 timestamp string to a date.
+
+    Returns None for absent, empty, or malformed values (conservative include).
+    Logs a warning to stderr for non-empty malformed values so CI misconfigs
+    are visible rather than silently swallowed.
+    """
+    if not value:
+        return None
     try:
         return date.fromisoformat(value[:10])
     except (ValueError, IndexError):
+        location = f" in {file_path}" if file_path else ""
+        sys.stderr.write(
+            f"Warning: unrecognised timestamp '{value}'{location},"
+            " treating as no timestamp\n"
+        )
         return None
 
 
@@ -28,7 +40,8 @@ def parse_file(path: Path) -> tuple[list[tuple[str, bool]], date | None]:
 
     Returns a tuple of:
       - list of (classname.testname, passed) tuples
-      - the date from the first <testsuite> timestamp attribute, or None
+      - the max date across all <testsuite> timestamps, or None if any suite
+        lacks a timestamp or has a malformed one (conservative: always include)
     Raises ParseError on malformed XML.
     """
     try:
@@ -48,13 +61,23 @@ def parse_file(path: Path) -> tuple[list[tuple[str, bool]], date | None]:
     else:
         raise ParseError(f"Unexpected root element <{root.tag}> in {path}")
 
-    # Read timestamp from the first suite that has one.
+    # Use the latest timestamp across all suites.
+    # If any suite has a missing or malformed timestamp, treat the whole file's
+    # date as None (conservative: include the file regardless of --since).
     run_date: date | None = None
+    has_missing: bool = False
     for suite in suites:
         ts_attr = suite.get("timestamp")
-        if ts_attr is not None:
-            run_date = _parse_timestamp(ts_attr)
-            break
+        if ts_attr is None:
+            has_missing = True
+        else:
+            d = _parse_timestamp(ts_attr, path)
+            if d is None:
+                has_missing = True
+            elif run_date is None or d > run_date:
+                run_date = d
+    if has_missing:
+        run_date = None
 
     results: list[tuple[str, bool]] = []
     for suite in suites:

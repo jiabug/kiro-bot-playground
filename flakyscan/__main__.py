@@ -35,7 +35,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p.add_argument(
         "--since",
-        type=str,
+        type=date.fromisoformat,
         default=None,
         metavar="YYYY-MM-DD",
         help="Only include reports with a testsuite timestamp >= this date.",
@@ -55,12 +55,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Error: not a directory: {folder}", file=sys.stderr)
         return 1
 
-    since: date | None = None
-    if args.since is not None:
-        try:
-            since = date.fromisoformat(args.since)
-        except ValueError:
-            parser.error("--since must be YYYY-MM-DD")
+    since: date | None = args.since
 
     runs = parse_folder(folder)
     stats = aggregate(runs, min_runs=args.min_runs, since=since)
