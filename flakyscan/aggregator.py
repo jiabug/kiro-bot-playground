@@ -1,6 +1,7 @@
 """Aggregate per-run pass/fail data and identify flaky tests."""
 
 from dataclasses import dataclass
+from datetime import date
 
 
 @dataclass
@@ -27,15 +28,20 @@ class TestStats:
 
 
 def aggregate(
-    runs: dict[str, list[tuple[str, bool]]],
+    runs: dict[str, tuple[list[tuple[str, bool]], date | None] | list[tuple[str, bool]]],
     min_runs: int = 1,
+    since: date | None = None,
 ) -> list[TestStats]:
     """
     Aggregate results across all runs.
 
     Args:
-        runs: output of parser.parse_folder – {filename: [(test_name, passed)]}
+        runs: output of parser.parse_folder –
+              {filename: ([(test_name, passed)], run_date)}
+              Also accepts the legacy {filename: [(test_name, passed)]} shape.
         min_runs: skip tests seen fewer than this many times total
+        since: if set, skip runs whose timestamp date < since.
+               Runs with no timestamp are always included.
 
     Returns:
         List of TestStats for flaky tests only, sorted by flake_rate descending.
@@ -43,7 +49,19 @@ def aggregate(
     passes: dict[str, int] = {}
     failures: dict[str, int] = {}
 
-    for _run_name, results in runs.items():
+    for run_value in runs.values():
+        # Handle both (results, date) tuple and bare list (legacy callers).
+        if isinstance(run_value, tuple):
+            results, run_date = run_value
+        else:
+            results = run_value
+            run_date = None
+
+        # Filter by --since: skip runs older than the cutoff.
+        # No timestamp -> conservative include.
+        if since is not None and run_date is not None and run_date < since:
+            continue
+
         for test_name, passed in results:
             if passed:
                 passes[test_name] = passes.get(test_name, 0) + 1

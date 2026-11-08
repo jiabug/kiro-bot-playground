@@ -1,6 +1,6 @@
 """Tests for flakyscan.aggregator."""
 
-from flakyscan.aggregator import aggregate, TestStats
+from flakyscan.aggregator import aggregate
 
 
 def _make_runs(data: dict[str, list[tuple[str, bool]]]) -> dict:
@@ -80,3 +80,66 @@ def test_all_passing_not_flaky():
     runs = {"r1": [("t", True)], "r2": [("t", True)]}
     stats = aggregate(runs)
     assert stats == []
+
+# --- since filter tests ---
+
+from datetime import date
+from pathlib import Path
+
+FIXTURES = Path(__file__).parent / "fixtures"
+
+
+def test_since_excludes_old_run():
+    """Only run_since_new.xml (2099) is included; run_since_old.xml (2020) is skipped."""
+    from flakyscan.parser import parse_folder
+
+    runs = parse_folder(FIXTURES / "..")  # parse only the two since-fixtures via direct call
+    # Build a minimal runs dict with just the two since-fixtures.
+    from flakyscan.parser import parse_file
+
+    old_results, old_date = parse_file(FIXTURES / "run_since_old.xml")
+    new_results, new_date = parse_file(FIXTURES / "run_since_new.xml")
+
+    runs = {
+        "run_since_old.xml": (old_results, old_date),
+        "run_since_new.xml": (new_results, new_date),
+    }
+    stats = aggregate(runs, since=date(2050, 1, 1))
+    # Only new file included: tests.since.test_alpha failed, tests.since.test_beta passed.
+    # Both appear only once -> not flaky (need both pass and fail across runs).
+    # So no flaky tests from one run -> stats empty.
+    assert stats == []
+
+    # Without since, both runs are included -> test_alpha: pass+fail, test_beta: fail+pass -> flaky.
+    stats_all = aggregate(runs, since=None)
+    names = {s.name for s in stats_all}
+    assert "tests.since.test_alpha" in names
+    assert "tests.since.test_beta" in names
+
+
+def test_since_none_includes_both():
+    """With since=None both old and new runs are included."""
+    from flakyscan.parser import parse_file
+
+    old_results, old_date = parse_file(FIXTURES / "run_since_old.xml")
+    new_results, new_date = parse_file(FIXTURES / "run_since_new.xml")
+
+    runs = {
+        "run_since_old.xml": (old_results, old_date),
+        "run_since_new.xml": (new_results, new_date),
+    }
+    stats = aggregate(runs, since=None)
+    names = {s.name for s in stats}
+    assert "tests.since.test_alpha" in names
+    assert "tests.since.test_beta" in names
+
+
+def test_since_no_timestamp_always_included():
+    """A run with no timestamp is never filtered out."""
+    runs: dict = {
+        "no_ts": ([("t.x", True), ("t.x", False)], None),
+    }
+    # Even with a far-future cutoff, no-timestamp run is included.
+    stats = aggregate(runs, since=date(9999, 1, 1))
+    assert len(stats) == 1
+    assert stats[0].name == "t.x"

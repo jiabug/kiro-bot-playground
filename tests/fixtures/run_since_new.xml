@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="suite_new" tests="2" failures="1" timestamp="2099-01-01T00:00:00">
+  <testcase classname="tests.since" name="test_alpha" time="0.1">
+    <failure message="AssertionError">assert False</failure>
+  </testcase>
+  <testcase classname="tests.since" name="test_beta" time="0.2"/>
+</testsuite>
