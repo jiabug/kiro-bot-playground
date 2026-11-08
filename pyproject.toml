@@ -1,0 +1,13 @@
+[project]
+name = "flakyscan"
+version = "0.1.0"
+description = "Detect flaky tests from a folder of JUnit XML reports."
+requires-python = ">=3.11"
+readme = "README.md"
+
+[project.scripts]
+flakyscan = "flakyscan.__main__:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.backends.legacy:build"
