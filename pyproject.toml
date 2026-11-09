@@ -17,4 +17,5 @@ source = ["flakyscan"]
 
 [tool.coverage.report]
 fail_under = 80
+precision = 2
 show_missing = true

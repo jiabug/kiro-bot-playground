@@ -10,8 +10,9 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - run: pip install pytest==8.3.5 pytest-cov==7.1.0 -e .
-      - run: pytest --cov --cov-report=term-missing
+      - run: pip install pytest==8.3.5 pytest-cov==7.1.0 coverage==7.17.2 -e .
+      - id: tests
+        run: pytest --cov --cov-report=term-missing
       - name: Coverage summary
-        if: always()
+        if: ${{ !cancelled() && steps.tests.outcome != 'skipped' }}
         run: coverage report --format=markdown --fail-under=0 >> "$GITHUB_STEP_SUMMARY"
