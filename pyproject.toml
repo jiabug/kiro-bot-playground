@@ -11,3 +11,10 @@ flakyscan = "flakyscan.__main__:main"
 [build-system]
 requires = ["setuptools>=40"]
 build-backend = "setuptools.build_meta"
+
+[tool.coverage.run]
+source = ["flakyscan"]
+
+[tool.coverage.report]
+fail_under = 80
+show_missing = true

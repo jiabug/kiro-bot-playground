@@ -91,3 +91,12 @@ Malformed XML files produce a warning on stderr and are skipped; the rest of the
 pip install pytest
 pytest
 ```
+
+### Coverage
+
+```bash
+pip install pytest-cov
+pytest --cov --cov-report=term-missing
+```
+
+CI fails if line coverage drops below 80% (`fail_under` in `pyproject.toml`).
